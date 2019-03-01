@@ -262,6 +262,8 @@ public interface TaskContainer extends TaskCollection<Task>, PolymorphicDomainOb
      */
     TaskProvider<Task> register(String name) throws InvalidUserDataException;
 
+    <T extends Task> void whenRegistred(Class<T> type, Action<TaskProvider<T>> onRegistered);
+
     /**
      * <p>Creates a {@link Task} with the given name and adds it to this container, replacing any existing task with the
      * same name.</p>

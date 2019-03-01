@@ -90,6 +90,7 @@ public class DefaultTaskContainer extends DefaultTaskCollection<Task> implements
     private final NamedEntityInstantiator<Task> taskInstantiator;
     private final ProjectAccessListener projectAccessListener;
     private final BuildOperationExecutor buildOperationExecutor;
+    private final Map<Class, RegistredPair<Task>> registeredProviders = new HashMap<>();
 
     private final TaskStatistics statistics;
     private final boolean eagerlyCreateLazyTasks;
@@ -391,6 +392,18 @@ public class DefaultTaskContainer extends DefaultTaskCollection<Task> implements
         return registerTask(name, type, null, constructorArgs);
     }
 
+    @Override
+    public <T extends Task> void whenRegistered(final Class<T> type, final Action<TaskProvider<T>> onRegistered) {
+        RegisteredPair<Task> registered = registeredProviders.getOrDefault(type, null);
+        if (registered == null) {
+            registered = new RegisterPair<Task>();
+            registered.registerCallback(onRegistered);
+            registeredProviders.put(type, registered);
+        } else {
+            registered.registerCallback(onRegistered);
+        }
+    }
+
     private <T extends Task> TaskProvider<T> registerTask(final String name, final Class<T> type, @Nullable final Action<? super T> configurationAction, final Object... constructorArgs) {
         if (hasWithName(name)) {
             failOnDuplicateTask(name);
@@ -416,6 +429,15 @@ public class DefaultTaskContainer extends DefaultTaskCollection<Task> implements
                 return provider;
             }
         });
+
+        RegisteredPair<Task> registered = registeredProviders.getOrDefault(type, null);
+        if (registered == null) {
+            registered = new RegisterPair<Task>();
+            registered.registerTask(provider);
+            registeredProviders.put(type, registered);
+        } else {
+            registered.registerTask(provider);
+        }
 
         if (eagerlyCreateLazyTasks) {
             provider.get();
@@ -843,6 +865,25 @@ public class DefaultTaskContainer extends DefaultTaskCollection<Task> implements
             return false;
         }
 
+    }
+
+    private static class RegistredPair<T extends Task> {
+        private List<TaskProvider<T>> taskProviders = new ArrayList<>();
+        private List<Action<TaskProvider<T>>> onRegisteredCallbacks = new ArrayList<>();
+
+        public void registerTask(final TaskProvider<T> taskProvider) {
+            taskProviders.add(taskProvider);
+            for (Action<TaskProvider<T>> callback : onRegisteredCallbacks) {
+                callback(taskProvider);
+            }
+        }
+
+        public void registerCallback(final Action<TaskProvider<T>> callback) {
+            onRegisteredCallbacks.add(callback);
+            for (TaskProvider<T> provider : taskProviders) {
+                callback(provider);
+            }
+        }
     }
 
 }
